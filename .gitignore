@@ -1,4 +1,4 @@
-.meu_venv
+meu_venv/
 build/
 dist/
 *.egg-info/

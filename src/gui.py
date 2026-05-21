@@ -1,20 +1,20 @@
 import os
 import sys
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
 
 # Adiciona o diretório raiz do projeto ao sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-#import utils
 
-from processor import extrair_dados_word, preencher_planilha_excel
+from src.core.workflow import MaterialAutomationService
 
 class DocxToExcelAutomator:
     def __init__(self, root):
         self.root = root
         self.root.title("Aut Lista de Material - DOCX to Excel Automator")
-        self.root.geometry("600x400")
+        self.root.geometry("700x520")
+        self.service = MaterialAutomationService()
 
         # File selection frame
         file_frame = tk.Frame(root, padx=10, pady=10)
@@ -48,6 +48,17 @@ class DocxToExcelAutomator:
         self.start_button = tk.Button(root, text="Iniciar Script", command=self.start_automation, font=("Helvetica", 12, "bold"))
         self.start_button.pack(pady=10, padx=10, fill=tk.X, ipady=5)
 
+        progress_frame = tk.Frame(root, padx=10)
+        progress_frame.pack(fill=tk.X)
+
+        self.progress_var = tk.IntVar(value=0)
+        self.progress_bar = ttk.Progressbar(progress_frame, orient="horizontal", mode="determinate", maximum=100, variable=self.progress_var)
+        self.progress_bar.pack(fill=tk.X, expand=True, side=tk.LEFT)
+
+        self.progress_label_var = tk.StringVar(value="0%")
+        progress_label = tk.Label(progress_frame, textvariable=self.progress_label_var, width=12, anchor=tk.E)
+        progress_label.pack(side=tk.RIGHT, padx=(8, 0))
+
         # Log frame
         log_frame = tk.Frame(root, padx=10, pady=10)
         log_frame.pack(fill=tk.BOTH, expand=True)
@@ -60,6 +71,14 @@ class DocxToExcelAutomator:
 
         self.add_placeholder(self.docx_entry, "Clique em 'Procurar...' para selecionar a lista de material")
         self.add_placeholder(self.excel_entry, "Clique em 'Procurar...' para selecionar a planilha de aço")
+
+    def update_progress(self, current, total, message):
+        percent = 0 if total == 0 else int((current / total) * 100)
+        percent = max(0, min(100, percent))
+        self.progress_var.set(percent)
+        self.progress_label_var.set(f"{percent}%")
+        self.log(message)
+        self.root.update_idletasks()
 
     def add_placeholder(self, widget, placeholder):
         widget.insert(0, placeholder)
@@ -126,14 +145,13 @@ class DocxToExcelAutomator:
             messagebox.showerror("Erro", f"Planilha Excel não encontrada:\n{planilha_excel}")
             return
 
-        self.log("Iniciando o processo...")
-        
+        self.start_button.config(state=tk.DISABLED)
+        self.progress_var.set(0)
+        self.progress_label_var.set("0%")
+
         try:
-            dados_extraidos = extrair_dados_word(arquivo_word)
-            if dados_extraidos:
-                self.log(f"Dados extraídos de {os.path.basename(arquivo_word)} com sucesso.")
-                self.log("Preenchendo a planilha Excel...")
-                preencher_planilha_excel(planilha_excel, dados_extraidos)
+            caminho_processado = self.service.processar(arquivo_word, planilha_excel, callback=self.update_progress)
+            if caminho_processado:
                 messagebox.showinfo("Sucesso", "A planilha Excel foi atualizada com sucesso.")
             else:
                 self.log("Nenhum dado extraído do arquivo Word. Verifique o arquivo.")
@@ -141,6 +159,8 @@ class DocxToExcelAutomator:
         except Exception as e:
             self.log(f"Erro: {e}")
             messagebox.showerror("Erro na Automação", f"Ocorreu um erro: {e}")
+        finally:
+            self.start_button.config(state=tk.NORMAL)
 
 if __name__ == "__main__":
     root = tk.Tk()
